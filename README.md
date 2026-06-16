@@ -41,17 +41,40 @@ python lead_scout.py --mode hybrid --niche dental --cities "Miami,Dallas" --targ
 
 ## Outputs
 
-Each run continuously writes:
+Each run now writes into a dedicated folder under `runs/` by default. For example:
+
+```bash
+python lead_scout.py --mode overpass --niche dental --cities "Miami,Dallas" --target 100 --output dental_leads.csv
+```
+
+creates:
+
+```text
+runs/dental-leads/
+```
+
+Use `--run-name` to choose the folder name, or `--results-dir` to move all run folders somewhere else:
+
+```bash
+python lead_scout.py --mode overpass --niche dental --cities "Miami" --target 50 --output leads.csv --run-name miami_dental_test
+python lead_scout.py --mode hybrid --niche law --cities "Miami,Houston" --target 200 --results-dir saved_runs --output law_leads.csv
+```
+
+Each run folder continuously writes:
 
 - `leads_qualified.csv`
 - `leads_maybe.csv`
 - `leads_rejected.csv`
-- The combined `--output` CSV, unless it is one of the split filenames.
+- The combined `--output` CSV.
+- `leads_clean.csv` - compact review columns for easier scanning.
+- `lead_brief.md` - a human-readable brief with counts, skips, and top lead details.
 - `run_report.json`
 - `discovered_domains.txt`
 - `errors.log`
 
 Run state is saved under `.cache/runs/`. Use `--resume` to continue a matching run after interruption.
+
+Duplicate history is shared across runs in `.cache/lead_history.jsonl`. By default, domains already processed by previous runs are skipped. Active domain lock files under `.cache/locks/` also help two terminal instances avoid crawling the same domain at the same time. Use `--ignore-history` only when you intentionally want to recrawl previously processed domains.
 
 ## How Overpass Mode Works
 

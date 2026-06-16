@@ -1,0 +1,36 @@
+# Local secrets
+.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Lead scout runtime data
+.cache/
+runs/
+tmp/
+discovered_domains.txt
+errors.log
+run_report.json
+leads.csv
+leads_qualified.csv
+leads_maybe.csv
+leads_rejected.csv
+test_*_leads.csv
+test_*.csv
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

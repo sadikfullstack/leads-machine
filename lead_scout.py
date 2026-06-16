@@ -73,6 +73,21 @@ CSV_COLUMNS = [
     "lon",
 ]
 
+CLEAN_COLUMNS = [
+    "status",
+    "score",
+    "business",
+    "domain",
+    "contact",
+    "city_state",
+    "asset_type",
+    "asset_url",
+    "demo_angle",
+    "opportunity",
+    "source",
+    "reject_reason",
+]
+
 NICHES = ("agencies", "law", "dental", "real_estate")
 MODES = ("overpass", "directories", "search", "hybrid", "manual")
 
@@ -480,10 +495,29 @@ def write_json(path: Path, data: Any) -> None:
     tmp.replace(path)
 
 
+def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=True, sort_keys=True) + "\n")
+
+
 def clean_text(value: str) -> str:
     value = unescape(value or "")
     value = re.sub(r"\s+", " ", value)
     return value.strip()
+
+
+def short_text(value: Any, width: int = 80) -> str:
+    text = clean_text(str(value or ""))
+    if len(text) <= width:
+        return text
+    return text[: max(0, width - 3)].rstrip() + "..."
+
+
+def markdown_cell(value: Any, width: int = 90) -> str:
+    text = short_text(value, width)
+    text = text.replace("|", "\\|")
+    return text.replace("\n", " ")
 
 
 def normalize_url(url: str, default_scheme: str = "https") -> str:
@@ -704,6 +738,138 @@ def city_label(entry: Dict[str, Any]) -> str:
     return f"{name}, {state}".strip(", ")
 
 
+def candidate_history_key(candidate: Candidate) -> str:
+    domain = candidate.domain or normalize_domain(candidate.website)
+    if domain:
+        return domain
+    if candidate.source_email:
+        return f"email:{candidate.source_email.lower()}"
+    return candidate.key()
+
+
+class HistoryStore:
+    def __init__(self, path: Path, enabled: bool = True, stale_minutes: int = 720) -> None:
+        self.path = path
+        self.enabled = enabled
+        self.stale_seconds = max(60, stale_minutes * 60)
+        self.lock_dir = path.parent / "locks"
+        self._seen: Set[str] = set()
+        self._loaded_signature: Tuple[float, int] = (0.0, -1)
+        if enabled:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.lock_dir.mkdir(parents=True, exist_ok=True)
+            self.reload(force=True)
+
+    def _signature(self) -> Tuple[float, int]:
+        if not self.path.exists():
+            return (0.0, -1)
+        stat = self.path.stat()
+        return (stat.st_mtime, stat.st_size)
+
+    def reload(self, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        signature = self._signature()
+        if not force and signature == self._loaded_signature:
+            return
+        seen: Set[str] = set()
+        if self.path.exists():
+            with self.path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except ValueError:
+                        continue
+                    key = clean_text(record.get("key", ""))
+                    if key:
+                        seen.add(key)
+        self._seen = seen
+        self._loaded_signature = signature
+
+    def seen(self, key: str) -> bool:
+        if not self.enabled or not key:
+            return False
+        self.reload()
+        return key in self._seen
+
+    def lock_path(self, key: str) -> Path:
+        return self.lock_dir / f"{stable_slug(key, 120)}.lock"
+
+    def _lock_payload(self, path: Path) -> Dict[str, Any]:
+        try:
+            return read_json(path, {})
+        except Exception:
+            return {}
+
+    def claim(self, key: str, run_id: str) -> str:
+        if not self.enabled or not key:
+            return ""
+        path = self.lock_path(key)
+        token = f"{run_id}:{hash_text(key + utc_now())}"
+        payload = {"key": key, "run_id": run_id, "token": token, "claimed_at": utc_now()}
+        for _ in range(2):
+            try:
+                fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    json.dump(payload, handle, ensure_ascii=True)
+                return token
+            except FileExistsError:
+                existing = self._lock_payload(path)
+                claimed_at = existing.get("claimed_at", "")
+                try:
+                    claimed_ts = datetime.fromisoformat(claimed_at).timestamp()
+                except (TypeError, ValueError):
+                    claimed_ts = path.stat().st_mtime if path.exists() else time.time()
+                if time.time() - claimed_ts > self.stale_seconds:
+                    try:
+                        path.unlink()
+                        continue
+                    except OSError:
+                        return ""
+                return ""
+        return ""
+
+    def release(self, key: str, token: str) -> None:
+        if not self.enabled or not key or not token:
+            return
+        path = self.lock_path(key)
+        if not path.exists():
+            return
+        payload = self._lock_payload(path)
+        if payload.get("token") != token:
+            return
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    def mark_processed(self, key: str, candidate: Candidate, row: Dict[str, Any], run_id: str) -> None:
+        if not self.enabled or not key:
+            return
+        if self.seen(key):
+            return
+        append_jsonl(
+            self.path,
+            {
+                "key": key,
+                "domain": row.get("domain") or candidate.domain or normalize_domain(candidate.website),
+                "business_name": row.get("business_name") or candidate.business_name,
+                "niche": row.get("niche") or candidate.niche,
+                "qualified_status": row.get("qualified_status", ""),
+                "lead_score": row.get("lead_score", ""),
+                "website": row.get("website") or candidate.website,
+                "source_mode": row.get("source_mode") or candidate.source_mode,
+                "run_id": run_id,
+                "processed_at": utc_now(),
+            },
+        )
+        self._seen.add(key)
+        self._loaded_signature = self._signature()
+
+
 class RobotsCache:
     def __init__(self, session: requests.Session, delay: float, log: Log) -> None:
         self.session = session
@@ -857,21 +1023,43 @@ def mailto_emails_from_html(html: str) -> Set[str]:
     return emails
 
 
+def default_run_name(args: argparse.Namespace, output_path: Path) -> str:
+    if getattr(args, "run_name", ""):
+        return stable_slug(args.run_name)
+    stem = output_path.stem or "leads"
+    if stem and stem != "leads":
+        return stable_slug(stem)
+    parts = [stem, args.mode, args.niche or "all"]
+    cities = split_cities(args.cities or "")
+    if cities:
+        parts.append("-".join(stable_slug(city, 24) for city in cities[:3]))
+    return stable_slug("_".join(part for part in parts if part))
+
+
 class OutputManager:
     def __init__(self, output_path: Path, cache_dir: Path, args: argparse.Namespace, log: Log) -> None:
-        self.output_path = output_path
-        self.output_dir = output_path.parent if output_path.parent != Path("") else Path(".")
+        self.run_name = default_run_name(args, output_path)
+        self.run_id = f"{self.run_name}-{hash_text(utc_now() + self.run_name)}"
+        self.output_dir = Path(args.results_dir) / self.run_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_path = self.output_dir / (output_path.name or "leads.csv")
         self.cache_dir = cache_dir
         self.args = args
         self.log = log
         self.qualified_path = self.output_dir / "leads_qualified.csv"
         self.maybe_path = self.output_dir / "leads_maybe.csv"
         self.rejected_path = self.output_dir / "leads_rejected.csv"
+        self.clean_path = self.output_dir / "leads_clean.csv"
+        self.brief_path = self.output_dir / "lead_brief.md"
         self.report_path = self.output_dir / "run_report.json"
         self.discovered_path = self.output_dir / "discovered_domains.txt"
         self.errors_path = self.output_dir / "errors.log"
-        self.state_path = cache_dir / "runs" / f"{stable_slug(output_path.stem)}_{stable_slug(args.mode)}_{stable_slug(args.niche or 'all')}.json"
+        self.state_path = cache_dir / "runs" / f"{self.run_name}_{stable_slug(args.mode)}_{stable_slug(args.niche or 'all')}.json"
+        self.history = HistoryStore(
+            Path(args.history_file),
+            enabled=not args.ignore_history,
+            stale_minutes=args.lock_stale_minutes,
+        )
         self.state = self._initial_state()
 
     def _initial_state(self) -> Dict[str, Any]:
@@ -882,6 +1070,10 @@ class OutputManager:
             "niche": self.args.niche or "all",
             "cities": split_cities(self.args.cities or ""),
             "target": self.args.target,
+            "run_name": self.run_name,
+            "run_id": self.run_id,
+            "results_dir": str(self.output_dir),
+            "history_file": str(self.history.path) if self.history.enabled else "",
             "total_queries_run": 0,
             "total_search_results_collected": 0,
             "total_overpass_results_collected": 0,
@@ -891,6 +1083,8 @@ class OutputManager:
             "maybe_count": 0,
             "rejected_count": 0,
             "duplicate_domains_skipped": 0,
+            "global_duplicates_skipped": 0,
+            "active_duplicates_skipped": 0,
             "provider_errors": [],
             "crawl_errors": [],
             "top_qualified_leads": [],
@@ -910,6 +1104,8 @@ class OutputManager:
             self.state = self._initial_state()
             self.save_state()
             self.write_csvs()
+            self.write_clean_csv()
+            self.write_brief()
             self.discovered_path.write_text("", encoding="utf-8")
             self.errors_path.write_text("", encoding="utf-8")
 
@@ -939,6 +1135,12 @@ class OutputManager:
         key = candidate.domain or normalize_domain(candidate.website) or candidate.key()
         if not key:
             return False
+        history_key = candidate_history_key(candidate)
+        if self.history.seen(history_key):
+            self.increment("global_duplicates_skipped")
+            self.log.debug(f"[SKIP] already processed in history domain={history_key}")
+            self.save_state()
+            return False
         discovered = self.discovered_domains
         if key in discovered:
             if key not in self.processed_keys:
@@ -959,18 +1161,41 @@ class OutputManager:
         self.state["processed_keys"] = sorted(processed)
         self.state["processed_domains"] = len(processed)
 
+    def claim_candidate(self, candidate: Candidate) -> Tuple[str, str]:
+        key = candidate_history_key(candidate)
+        if not key:
+            return "", ""
+        if self.history.seen(key):
+            self.increment("global_duplicates_skipped")
+            self.save_state()
+            return key, ""
+        token = self.history.claim(key, self.run_id)
+        if not token and self.history.enabled:
+            self.increment("active_duplicates_skipped")
+            self.save_state()
+        return key, token
+
+    def release_candidate(self, history_key: str, token: str) -> None:
+        self.history.release(history_key, token)
+
+    def mark_history_processed(self, history_key: str, candidate: Candidate, row: Dict[str, Any]) -> None:
+        self.history.mark_processed(history_key, candidate, row, self.run_id)
+
     def add_row(self, row: Dict[str, Any]) -> None:
         normalized = {column: row.get(column, "") for column in CSV_COLUMNS}
         normalized["lead_score"] = str(normalized.get("lead_score", ""))
         self.state.setdefault("rows", []).append(normalized)
         self.recount_rows()
         self.write_csvs()
+        self.write_clean_csv()
+        self.write_brief()
         self.save_state()
         self.log.info(
-            f"[RESULT] {normalized['qualified_status']} score={normalized['lead_score']} "
+            f"[RESULT] {normalized['qualified_status']:<9} | score={normalized['lead_score']} | "
+            f"Q={self.state['qualified_count']} M={self.state['maybe_count']} R={self.state['rejected_count']} | "
             f"reason=\"{normalized['reject_reason']}\""
         )
-        self.log.info("[SAVE] wrote partial outputs")
+        self.log.info(f"[SAVE] {self.output_dir}")
 
     def recount_rows(self) -> None:
         rows = self.state.get("rows", [])
@@ -1001,10 +1226,104 @@ class OutputManager:
         }:
             self.write_csv(self.output_path, rows)
 
+    def clean_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        contact = row.get("best_email") or row.get("contact_form_url") or row.get("phone") or ""
+        source = " / ".join(
+            part
+            for part in [
+                row.get("source_mode", ""),
+                row.get("source_provider", ""),
+                row.get("source_query_or_connector", ""),
+            ]
+            if part
+        )
+        return {
+            "status": row.get("qualified_status", ""),
+            "score": row.get("lead_score", ""),
+            "business": row.get("business_name", ""),
+            "domain": row.get("domain", ""),
+            "contact": contact,
+            "city_state": row.get("city_state", ""),
+            "asset_type": row.get("best_asset_type", ""),
+            "asset_url": row.get("best_asset_url", ""),
+            "demo_angle": row.get("demo_angle", ""),
+            "opportunity": row.get("shortform_opportunity", ""),
+            "source": source,
+            "reject_reason": row.get("reject_reason", ""),
+        }
+
+    def sorted_rows(self) -> List[Dict[str, Any]]:
+        status_rank = {"qualified": 0, "maybe": 1, "rejected": 2}
+        rows = list(self.state.get("rows", []))
+        return sorted(
+            rows,
+            key=lambda row: (
+                status_rank.get(row.get("qualified_status", ""), 9),
+                -int(row.get("lead_score") or 0),
+                row.get("business_name", ""),
+            ),
+        )
+
+    def write_clean_csv(self) -> None:
+        rows = [self.clean_row(row) for row in self.sorted_rows()]
+        with self.clean_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=CLEAN_COLUMNS)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({column: row.get(column, "") for column in CLEAN_COLUMNS})
+
+    def write_brief(self) -> None:
+        rows = self.sorted_rows()
+        lines = [
+            f"# Lead Brief: {self.run_name}",
+            "",
+            f"- Started: {self.state.get('started_at', '')}",
+            f"- Updated: {utc_now()}",
+            f"- Mode: {self.state.get('mode', '')}",
+            f"- Niche: {self.state.get('niche', '')}",
+            f"- Results folder: `{self.output_dir}`",
+            f"- Counts: qualified {self.state.get('qualified_count', 0)}, maybe {self.state.get('maybe_count', 0)}, rejected {self.state.get('rejected_count', 0)}",
+            f"- Skipped duplicates: run {self.state.get('duplicate_domains_skipped', 0)}, history {self.state.get('global_duplicates_skipped', 0)}, active {self.state.get('active_duplicates_skipped', 0)}",
+            "",
+        ]
+        if not rows:
+            lines.extend(["No leads written yet.", ""])
+        else:
+            lines.extend(
+                [
+                    "| Status | Score | Business | Contact | Asset | Demo angle |",
+                    "| --- | ---: | --- | --- | --- | --- |",
+                ]
+            )
+            for row in rows[:75]:
+                clean = self.clean_row(row)
+                asset = clean.get("asset_type") or "unknown"
+                if clean.get("asset_url"):
+                    asset = f"{asset}: {clean['asset_url']}"
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        [
+                            markdown_cell(clean.get("status"), 14),
+                            markdown_cell(clean.get("score"), 4),
+                            markdown_cell(clean.get("business") or clean.get("domain"), 34),
+                            markdown_cell(clean.get("contact"), 42),
+                            markdown_cell(asset, 46),
+                            markdown_cell(clean.get("demo_angle") or clean.get("reject_reason"), 72),
+                        ]
+                    )
+                    + " |"
+                )
+            if len(rows) > 75:
+                lines.extend(["", f"Showing first 75 of {len(rows)} rows. Use `leads_clean.csv` for the full compact view."])
+        self.brief_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
     def write_report(self, finished: bool = False) -> None:
         if finished:
             self.state["finished_at"] = utc_now()
         self.recount_rows()
+        self.write_clean_csv()
+        self.write_brief()
         report = {
             key: value
             for key, value in self.state.items()
@@ -2143,6 +2462,49 @@ def runtime_expired(start_ts: float, max_minutes: Optional[int]) -> bool:
     return (time.time() - start_ts) >= max_minutes * 60
 
 
+def render_box(log: Log, title: str, items: Sequence[Tuple[str, Any]]) -> None:
+    width = 72
+    log.info("+" + "-" * width + "+")
+    log.info("| " + short_text(title, width - 2).ljust(width - 1) + "|")
+    log.info("+" + "-" * width + "+")
+    for label, value in items:
+        text = f"{label}: {value}"
+        log.info("| " + short_text(text, width - 2).ljust(width - 1) + "|")
+    log.info("+" + "-" * width + "+")
+
+
+def render_start_ui(args: argparse.Namespace, output: OutputManager, log: Log) -> None:
+    render_box(
+        log,
+        APP_NAME,
+        [
+            ("mode", args.mode),
+            ("niche", args.niche or "all"),
+            ("target", args.target),
+            ("results", output.output_dir),
+            ("combined csv", output.output_path.name),
+            ("clean view", output.clean_path.name),
+            ("brief", output.brief_path.name),
+            ("history", output.history.path if output.history.enabled else "disabled"),
+        ],
+    )
+
+
+def render_done_ui(output: OutputManager, log: Log) -> None:
+    render_box(
+        log,
+        "Run Complete",
+        [
+            ("qualified", output.state.get("qualified_count", 0)),
+            ("maybe", output.state.get("maybe_count", 0)),
+            ("rejected", output.state.get("rejected_count", 0)),
+            ("history skips", output.state.get("global_duplicates_skipped", 0)),
+            ("active skips", output.state.get("active_duplicates_skipped", 0)),
+            ("results", output.output_dir),
+        ],
+    )
+
+
 def niches_to_run(args: argparse.Namespace) -> List[str]:
     if args.all:
         return list(NICHES)
@@ -2191,22 +2553,40 @@ def process_candidates(
         key = candidate.key()
         if key in processed:
             continue
-        log.info(f"[CRAWL] [{index}/{total}] {candidate.domain or candidate.business_name or candidate.website}")
-        if args.dry_run:
+        history_key, claim_token = output.claim_candidate(candidate)
+        if output.history.enabled and not claim_token:
+            if output.history.seen(history_key):
+                log.info(f"[SKIP] already processed | {history_key}")
+            else:
+                log.info(f"[SKIP] active in another run | {history_key}")
             output.mark_processed(key)
+            processed = output.processed_keys
             continue
+        log.info(
+            f"[CRAWL] {index:>4}/{total:<4} | "
+            f"Q={output.state.get('qualified_count', 0)} M={output.state.get('maybe_count', 0)} "
+            f"R={output.state.get('rejected_count', 0)} | "
+            f"{candidate.domain or candidate.business_name or candidate.website}"
+        )
         try:
-            pages, crawl_error = crawler.crawl(candidate)
-            if crawl_error:
-                output.add_crawl_error(f"{candidate.domain or candidate.website}: {crawl_error}")
-            row = row_from_candidate(candidate, pages, crawl_error, args)
-        except Exception as exc:
-            message = f"{candidate.domain or candidate.website}: {exc}"
-            log.error(f"[CRAWL_ERROR] {message}")
-            output.add_crawl_error(message)
-            row = row_from_candidate(candidate, [], "crawler exception", args)
-        output.mark_processed(key)
-        output.add_row(row)
+            if args.dry_run:
+                output.mark_processed(key)
+            else:
+                try:
+                    pages, crawl_error = crawler.crawl(candidate)
+                    if crawl_error:
+                        output.add_crawl_error(f"{candidate.domain or candidate.website}: {crawl_error}")
+                    row = row_from_candidate(candidate, pages, crawl_error, args)
+                except Exception as exc:
+                    message = f"{candidate.domain or candidate.website}: {exc}"
+                    log.error(f"[CRAWL_ERROR] {message}")
+                    output.add_crawl_error(message)
+                    row = row_from_candidate(candidate, [], "crawler exception", args)
+                output.mark_processed(key)
+                output.add_row(row)
+                output.mark_history_processed(history_key, candidate, row)
+        finally:
+            output.release_candidate(history_key, claim_token)
         processed = output.processed_keys
 
 
@@ -2230,6 +2610,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--query-file", default="queries.json")
     parser.add_argument("--cache-dir", default=".cache")
     parser.add_argument("--output", default="leads.csv")
+    parser.add_argument("--results-dir", default="runs", help="Folder where run result folders are written")
+    parser.add_argument("--run-name", default="", help="Optional stable folder name under --results-dir")
+    parser.add_argument("--history-file", default=".cache/lead_history.jsonl", help="Shared processed-domain history")
+    parser.add_argument("--ignore-history", action="store_true", help="Do not skip domains from previous runs")
+    parser.add_argument("--lock-stale-minutes", type=int, default=720, help="Release active domain locks after this many minutes")
     parser.add_argument("--overpass-timeout", type=int, default=25)
     parser.add_argument("--max-queries-per-provider", type=int, default=25)
     parser.add_argument("--manual-url", action="append", help="Manual fallback URL; repeatable")
@@ -2243,7 +2628,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         parser.error("--target must be positive")
     if args.delay < 0:
         parser.error("--delay cannot be negative")
+    if args.lock_stale_minutes < 1:
+        parser.error("--lock-stale-minutes must be positive")
     args.cache_dir = str(Path(args.cache_dir))
+    args.results_dir = str(Path(args.results_dir))
+    args.history_file = str(Path(args.history_file))
     return args
 
 
@@ -2258,9 +2647,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     output.log = log
     output.load_or_reset(args.resume)
     start_ts = time.time()
-    log.info(
-        f"[START] mode={args.mode} niche={args.niche or 'all'} target={args.target}"
-    )
+    render_start_ui(args, output, log)
+    log.info(f"[START] mode={args.mode} niche={args.niche or 'all'} target={args.target}")
     fetcher = Fetcher(delay=args.delay, log=log)
     crawler = Crawler(args=args, output=output, fetcher=fetcher, log=log)
 
@@ -2279,9 +2667,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     finally:
         output.write_report(finished=True)
 
+    render_done_ui(output, log)
     log.info(
         "[DONE] wrote leads_qualified.csv, leads_maybe.csv, leads_rejected.csv, "
-        "run_report.json"
+        "leads_clean.csv, lead_brief.md, run_report.json"
     )
     return 0
 
