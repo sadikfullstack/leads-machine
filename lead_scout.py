@@ -489,10 +489,23 @@ def read_json(path: Path, default: Any) -> Any:
 
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{hash_text(utc_now())}.tmp")
     with tmp.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=True, indent=2)
-    tmp.replace(path)
+    last_error: Optional[Exception] = None
+    for attempt in range(8):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.15 * (attempt + 1))
+    try:
+        tmp.unlink()
+    except OSError:
+        pass
+    if last_error:
+        raise last_error
 
 
 def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
