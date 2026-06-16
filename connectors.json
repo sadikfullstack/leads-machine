@@ -1,0 +1,42 @@
+[
+  {
+    "name": "replace_with_agency_directory",
+    "niche": "agencies",
+    "enabled": false,
+    "start_urls": ["https://example.com/category/marketing-agencies"],
+    "allowed_domains": ["example.com"],
+    "max_pages": 50,
+    "extract_official_links": true,
+    "notes": "Replace example.com with a public agency directory category page. The crawler will follow pagination-like internal links and extract outbound official business websites."
+  },
+  {
+    "name": "replace_with_lawyer_directory",
+    "niche": "law",
+    "enabled": false,
+    "start_urls": ["https://example.com/category/immigration-lawyers"],
+    "allowed_domains": ["example.com"],
+    "max_pages": 50,
+    "extract_official_links": true,
+    "notes": "Use only public directory pages. Do not use logged-in directories or sites that disallow crawling."
+  },
+  {
+    "name": "replace_with_dental_directory",
+    "niche": "dental",
+    "enabled": false,
+    "start_urls": ["https://example.com/category/dentists"],
+    "allowed_domains": ["example.com"],
+    "max_pages": 50,
+    "extract_official_links": true,
+    "notes": "Set enabled to true after replacing start_urls and allowed_domains with real public category pages."
+  },
+  {
+    "name": "replace_with_real_estate_directory",
+    "niche": "real_estate",
+    "enabled": false,
+    "start_urls": ["https://example.com/category/real-estate-agents"],
+    "allowed_domains": ["example.com"],
+    "max_pages": 50,
+    "extract_official_links": true,
+    "notes": "Prefer pages that visibly link to agent/team websites. Directory profile pages are not treated as leads when official links are available."
+  }
+]

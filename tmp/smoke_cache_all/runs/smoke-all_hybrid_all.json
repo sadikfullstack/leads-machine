@@ -1,0 +1,25 @@
+{
+  "started_at": "2026-06-16T14:17:47+00:00",
+  "finished_at": "2026-06-16T14:17:47+00:00",
+  "mode": "hybrid",
+  "niche": "all",
+  "cities": [
+    "Miami"
+  ],
+  "target": 1,
+  "total_queries_run": 9,
+  "total_search_results_collected": 0,
+  "total_overpass_results_collected": 0,
+  "unique_domains_found": 0,
+  "processed_domains": 0,
+  "qualified_count": 0,
+  "maybe_count": 0,
+  "rejected_count": 0,
+  "duplicate_domains_skipped": 0,
+  "provider_errors": [],
+  "crawl_errors": [],
+  "top_qualified_leads": [],
+  "processed_keys": [],
+  "discovered_domains": [],
+  "rows": []
+}

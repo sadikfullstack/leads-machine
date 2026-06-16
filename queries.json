@@ -1,0 +1,41 @@
+{
+  "agencies": [
+    "{city} law firm marketing agency",
+    "{city} real estate marketing agency",
+    "{city} dental marketing agency",
+    "{city} med spa marketing agency",
+    "{city} SEO agency for lawyers",
+    "{city} GoHighLevel agency",
+    "{city} web design agency for law firms",
+    "{city} white label marketing agency"
+  ],
+  "law": [
+    "immigration lawyer {city}",
+    "immigration attorney {city}",
+    "green card lawyer {city}",
+    "visa lawyer {city}",
+    "deportation defense lawyer {city}",
+    "asylum lawyer {city}",
+    "marriage green card attorney {city}",
+    "student visa lawyer {city}"
+  ],
+  "dental": [
+    "dental implants {city}",
+    "cosmetic dentist {city}",
+    "implant dentist {city}",
+    "smile makeover dentist {city}",
+    "Invisalign dentist {city}",
+    "dental clinic {city}",
+    "oral surgery clinic {city}"
+  ],
+  "real_estate": [
+    "luxury realtor {city}",
+    "luxury real estate agent {city}",
+    "{city} luxury real estate team",
+    "{city} condo realtor",
+    "{city} real estate team",
+    "{city} homes for sale luxury agent",
+    "{city} Sotheby's real estate agent",
+    "{city} Compass real estate team"
+  ]
+}

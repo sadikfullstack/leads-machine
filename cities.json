@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Miami",
+    "state": "FL",
+    "aliases": ["Miami, FL"],
+    "bbox": { "south": 25.7090, "west": -80.3198, "north": 25.8557, "east": -80.1392 }
+  },
+  {
+    "name": "New York",
+    "state": "NY",
+    "aliases": ["New York, NY", "NYC"],
+    "bbox": { "south": 40.4774, "west": -74.2591, "north": 40.9176, "east": -73.7004 }
+  },
+  {
+    "name": "Los Angeles",
+    "state": "CA",
+    "aliases": ["Los Angeles, CA", "LA"],
+    "bbox": { "south": 33.7037, "west": -118.6682, "north": 34.3373, "east": -118.1553 }
+  },
+  {
+    "name": "Houston",
+    "state": "TX",
+    "aliases": ["Houston, TX"],
+    "bbox": { "south": 29.5236, "west": -95.8233, "north": 30.1107, "east": -95.0697 }
+  },
+  {
+    "name": "Dallas",
+    "state": "TX",
+    "aliases": ["Dallas, TX"],
+    "bbox": { "south": 32.6175, "west": -97.0005, "north": 33.0238, "east": -96.4637 }
+  },
+  {
+    "name": "Chicago",
+    "state": "IL",
+    "aliases": ["Chicago, IL"],
+    "bbox": { "south": 41.6445, "west": -87.9401, "north": 42.0230, "east": -87.5241 }
+  },
+  {
+    "name": "Atlanta",
+    "state": "GA",
+    "aliases": ["Atlanta, GA"],
+    "bbox": { "south": 33.6478, "west": -84.5511, "north": 33.8869, "east": -84.2894 }
+  },
+  {
+    "name": "Phoenix",
+    "state": "AZ",
+    "aliases": ["Phoenix, AZ"],
+    "bbox": { "south": 33.2903, "west": -112.3240, "north": 33.9206, "east": -111.9259 }
+  },
+  {
+    "name": "Austin",
+    "state": "TX",
+    "aliases": ["Austin, TX"],
+    "bbox": { "south": 30.0987, "west": -97.9384, "north": 30.5169, "east": -97.5607 }
+  },
+  {
+    "name": "San Diego",
+    "state": "CA",
+    "aliases": ["San Diego, CA"],
+    "bbox": { "south": 32.5343, "west": -117.3098, "north": 33.1142, "east": -116.9057 }
+  },
+  {
+    "name": "Beverly Hills",
+    "state": "CA",
+    "aliases": ["Beverly Hills, CA"],
+    "bbox": { "south": 34.0525, "west": -118.4340, "north": 34.1012, "east": -118.3727 }
+  },
+  {
+    "name": "Manhattan",
+    "state": "NY",
+    "aliases": ["Manhattan, NY", "New York Manhattan"],
+    "bbox": { "south": 40.7003, "west": -74.0267, "north": 40.8820, "east": -73.9067 }
+  },
+  {
+    "name": "Scottsdale",
+    "state": "AZ",
+    "aliases": ["Scottsdale, AZ"],
+    "bbox": { "south": 33.4548, "west": -112.0043, "north": 33.9008, "east": -111.7517 }
+  },
+  {
+    "name": "Orange County",
+    "state": "CA",
+    "aliases": ["Orange County, CA", "OC"],
+    "bbox": { "south": 33.3339, "west": -118.1148, "north": 33.9476, "east": -117.4129 }
+  },
+  {
+    "name": "Fort Lauderdale",
+    "state": "FL",
+    "aliases": ["Fort Lauderdale, FL"],
+    "bbox": { "south": 26.0790, "west": -80.2276, "north": 26.2116, "east": -80.0794 }
+  },
+  {
+    "name": "Tampa",
+    "state": "FL",
+    "aliases": ["Tampa, FL"],
+    "bbox": { "south": 27.8210, "west": -82.6487, "north": 28.1716, "east": -82.2539 }
+  },
+  {
+    "name": "Orlando",
+    "state": "FL",
+    "aliases": ["Orlando, FL"],
+    "bbox": { "south": 28.3479, "west": -81.5077, "north": 28.6144, "east": -81.2266 }
+  },
+  {
+    "name": "San Francisco",
+    "state": "CA",
+    "aliases": ["San Francisco, CA", "SF"],
+    "bbox": { "south": 37.6398, "west": -123.1738, "north": 37.9298, "east": -122.2818 }
+  },
+  {
+    "name": "Seattle",
+    "state": "WA",
+    "aliases": ["Seattle, WA"],
+    "bbox": { "south": 47.4919, "west": -122.4597, "north": 47.7341, "east": -122.2244 }
+  },
+  {
+    "name": "Boston",
+    "state": "MA",
+    "aliases": ["Boston, MA"],
+    "bbox": { "south": 42.2279, "west": -71.1912, "north": 42.4008, "east": -70.9236 }
+  }
+]

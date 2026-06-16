@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="North Star Clips favicon">
+  <rect width="64" height="64" rx="14" fill="#050b14"/>
+  <path d="M32 8l5.7 18.3L56 32l-18.3 5.7L32 56l-5.7-18.3L8 32l18.3-5.7L32 8z" fill="#c4a15b"/>
+  <path d="M29 24.5v15l12-7.5-12-7.5z" fill="#ffffff"/>
+  <path d="M32 15l3.3 10.7L46 29l-10.7 3.3L32 43l-3.3-10.7L18 29l10.7-3.3L32 15z" fill="none" stroke="#f0e4c9" stroke-width="1.4" opacity=".55"/>
+</svg>
