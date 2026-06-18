@@ -202,6 +202,35 @@ Tips:
 - Search mode finds nothing: confirm API keys are in `.env` and `queries.json` has templates for the niche.
 - Too many rejected leads: narrow the city/niche, add better directory sources, or inspect `leads_rejected.csv` reject reasons.
 
+## Social Gap Scout
+
+This repo also includes a separate no-website/social-intent scout:
+
+```bash
+python social_gap_scout.py --business-type roofing --cities "Miami,Dallas,Houston,Los Angeles,Phoenix,Atlanta,Chicago,Tampa,Orlando" --target 500 --delay 2.5 --output roofing_social_gap.csv --run-name roofing_social_gap --resume --verbose
+```
+
+For the full city list in `cities.json`, use:
+
+```bash
+python social_gap_scout.py --business-type roofing --all-cities --target 1000 --delay 2.5 --output roofing_social_gap.csv --run-name roofing_social_gap --resume --verbose
+```
+
+It looks for businesses that match the requested trade, have an Instagram profile from public data, and do not have a functional primary website. A dead site, no site, or Instagram/Facebook-only link counts as no functional website. It does not require a Meta account and does not log in to Instagram.
+
+Outputs are written to `runs/<run-name>/`:
+
+- `roofing_social_gap.csv` or your `--output` filename.
+- `social_gap_qualified.csv`
+- `social_gap_rejected.csv`
+- `social_gap_clean.csv`
+- `social_gap_brief.md`
+- `run_report.json`
+- `discovered_profiles.txt`
+- `errors.log`
+
+The Instagram link is included as `instagram_url` in the full CSV and `instagram` in `social_gap_clean.csv`. By default, Instagram activity is not scraped; the tool treats a public Instagram URL found from source data as the signal. Add `--check-social-pages` only if you want slow unauthenticated checks against profile URLs.
+
 ## Landing Page Files
 
 This repo also contains the North Star Clips static landing page:
